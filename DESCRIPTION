@@ -1,0 +1,20 @@
+Package: DEBKSR
+Type: Package
+Title: Differential Expression for circRNA (DEBKS) in R
+Version: 0.1.0
+Authors@R: c(
+    person("DEBKS", "Team", role = c("aut", "cre"), email = "dev@example.com")
+    )
+Description: R implementation of DEBKS dec mode for differential circRNA analysis.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports:
+    Rcpp,
+    stats,
+    utils,
+    parallel
+LinkingTo:
+    Rcpp
+Suggests:
+    Matrix

@@ -1,0 +1,8 @@
+useDynLib(DEBKSR, .registration=TRUE)
+import(Rcpp)
+
+export(DEBKSDataSet)
+export(DEBKS)
+export(results)
+export(sizeFactors)
+export(psiMatrix)
