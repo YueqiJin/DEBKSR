@@ -13,6 +13,8 @@ Use the `DEBKSDataSet` constructor to assemble junction-count matrices and sampl
 metadata, then call `DEBKS()` to perform the statistical test. Results (PBSI,
 delta PBSI, p-values, and FDR) are stored in the returned object and accessible
 via the `results()` accessor.
+For paired designs, include a pairing identifier column in `coldata` and pass it
+via `paired_id` when calling `DEBKS()`.
 }
 \author{Yueqi Jin, Ence Yang}
 \keyword{package}
@@ -25,6 +27,7 @@ circ_len <- data.frame(chr = c("chr1","chr1"), start = c(100,200), end = c(150,2
 coldata <- data.frame(group = c("A","A","B","B"))
 dbs <- DEBKSDataSet(cjc = cjc, ljc = ljc, circ_len = circ_len, coldata = coldata)
 # Run a quick DEC analysis (single-thread, return all results)
-res_obj <- DEBKS(dbs, paired = FALSE, threads = 1, cutoff = 1)
+res_obj <- DEBKS(dbs, paired = FALSE, threads = 1, cutoff = 1,
+				 group_var = "group", reference_group = "A", observe_group = "B")
 head(results(res_obj))
 }

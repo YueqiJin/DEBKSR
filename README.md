@@ -35,8 +35,12 @@ circ_len <- data.frame(chr = c("chr1","chr1"), start = c(100,200), end = c(150,2
 coldata <- data.frame(group = c("A","A","B","B"))
 
 dbs <- DEBKSDataSet(cjc = cjc, ljc = ljc, circ_len = circ_len, coldata = coldata)
-res_obj <- DEBKS(dbs, paired = FALSE, threads = 1, cutoff = 1)
+res_obj <- DEBKS(dbs, paired = FALSE, threads = 1, cutoff = 1,
+				 group_var = "group", reference_group = "A", observe_group = "B")
 head(results(res_obj))
+
+# For paired designs, add a column like `pair_id` in coldata and pass
+# paired = TRUE with paired_id = "pair_id".
 ```
 
 ## Output

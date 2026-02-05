@@ -1,7 +1,10 @@
 DEBKS <- function(dbs,
                   long_read = FALSE,
                   paired = FALSE,
-                  sample_num = NULL,
+                  group_var = NULL,
+                  reference_group = NULL,
+                  observe_group = NULL,
+                  paired_id = NULL,
                   circRNA_filter = 0,
                   sample_filter = 0,
                   threads = 4,
@@ -22,6 +25,70 @@ DEBKS <- function(dbs,
     ljc <- dbs$ljc
     circ_len <- dbs$circ_len
 
+    if (is.null(group_var)) {
+        stop("group_var (coldata) must be provided.")
+    }
+
+    if (!is.null(group_var)) {
+        if (!is.data.frame(dbs$coldata)) stop("dbs$coldata must be a data.frame.")
+        if (!group_var %in% colnames(dbs$coldata)) {
+            stop("group_var must be a column name in coldata.")
+        }
+        group_vals <- dbs$coldata[[group_var]]
+        group_levels <- unique(group_vals)
+        if (is.null(reference_group) || is.null(observe_group)) {
+            if (length(group_levels) != 2) {
+                stop("When group_var has more than two groups, reference_group and observe_group are required.")
+            }
+            reference_group <- group_levels[1]
+            observe_group <- group_levels[2]
+        }
+        if (!reference_group %in% group_levels) stop("reference_group not found in group_var.")
+        if (!observe_group %in% group_levels) stop("observe_group not found in group_var.")
+        if (reference_group == observe_group) stop("reference_group and observe_group must differ.")
+
+        idx_ref <- which(group_vals == reference_group)
+        idx_obs <- which(group_vals == observe_group)
+        if (length(idx_ref) == 0 || length(idx_obs) == 0) {
+            stop("reference_group/observe_group selection returned zero samples.")
+        }
+
+        if (paired) {
+            if (is.null(paired_id)) stop("paired_id must be provided for paired analysis.")
+            if (!paired_id %in% colnames(dbs$coldata)) {
+                stop("paired_id must be a column name in coldata.")
+            }
+            pair_vals <- dbs$coldata[[paired_id]]
+            ref_pairs <- pair_vals[idx_ref]
+            obs_pairs <- pair_vals[idx_obs]
+            if (any(is.na(ref_pairs)) || any(is.na(obs_pairs))) {
+                stop("paired_id contains NA values for selected samples.")
+            }
+            if (any(duplicated(ref_pairs)) || any(duplicated(obs_pairs))) {
+                stop("paired_id must be unique within each group.")
+            }
+            common_pairs <- ref_pairs[ref_pairs %in% obs_pairs]
+            if (length(common_pairs) == 0) {
+                stop("No overlapping paired_id values between reference_group and observe_group.")
+            }
+            if (length(common_pairs) != length(ref_pairs) || length(common_pairs) != length(obs_pairs)) {
+                stop("Paired analysis requires one sample per group for each paired_id.")
+            }
+            ref_ordered <- idx_ref[match(common_pairs, ref_pairs)]
+            obs_ordered <- idx_obs[match(common_pairs, obs_pairs)]
+            new_order <- c(ref_ordered, obs_ordered)
+        } else {
+            new_order <- c(idx_ref, idx_obs)
+        }
+
+        cjc <- cjc[, new_order, drop = FALSE]
+        ljc <- ljc[, new_order, drop = FALSE]
+        if (!is.null(dbs$cjc2)) {
+            dbs$cjc2 <- dbs$cjc2[, new_order, drop = FALSE]
+        }
+        dbs$coldata <- dbs$coldata[new_order, , drop = FALSE]
+    }
+
     if (paired) {
         rmats_env <- .debks_rmats_paired_env
         getrMATS_P <- rmats_env$getrMATS_P
@@ -41,17 +108,8 @@ DEBKS <- function(dbs,
     }
 
     sampleNum <- ncol(cjc)
-    if (!is.null(sample_num)) {
-        if (length(sample_num) != 2) stop("sample_num must have two values.")
-        group1_num <- as.integer(sample_num[1])
-        group2_num <- as.integer(sample_num[2])
-        if (group1_num + group2_num != sampleNum) {
-            stop("sample_num does not match the number of samples.")
-        }
-    } else {
-        group1_num <- as.integer(sampleNum / 2)
-        group2_num <- sampleNum - group1_num
-    }
+    group1_num <- length(idx_ref)
+    group2_num <- length(idx_obs)
     if (group1_num < 2 || group2_num < 2) stop("Require replicates in both groups.")
 
     adjustReadLength <- read_len - hangover_len

@@ -23,6 +23,12 @@ DEBKSDataSet <- function(cjc, ljc, circ_len, coldata, cjc2 = NULL, circ_len2 = N
     if (!is.data.frame(coldata)) {
         stop("coldata must be a data.frame.")
     }
+    if (!is.null(colnames(cjc)) && !is.null(rownames(coldata))) {
+        if (!all(colnames(cjc) %in% rownames(coldata))) {
+            stop("coldata rownames must include all sample names from cjc/ljc.")
+        }
+        coldata <- coldata[colnames(cjc), , drop = FALSE]
+    }
     if (nrow(coldata) != ncol(cjc)) {
         stop("coldata rows must match sample columns in cjc/ljc.")
     }
