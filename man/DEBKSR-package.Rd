@@ -2,7 +2,7 @@
 \alias{DEBKSR-package}
 \alias{DEBKSR}
 \docType{package}
-	itle{DEBKSR: Differential Expression for circRNA (DEBKS) in R}
+	\title{DEBKSR: Differential Expression for circRNA (DEBKS) in R}
 \description{
 An R implementation of the DEBKS "dec" analysis for differential circular RNA
 expression between two groups. The package implements constructors and helpers to
@@ -12,7 +12,8 @@ create a DEBKS dataset and to run differential analysis (paired or unpaired desi
 Use the `DEBKSDataSet` constructor to assemble junction-count matrices and sample
 metadata, then call `DEBKS()` to perform the statistical test. Results (PBSI,
 delta PBSI, p-values, and FDR) are stored in the returned object and accessible
-via the `results()` accessor.
+via the `results()` accessor. Use `psiMatrix()` or `pbsiMatrix()` to compute
+per-sample PSI or PBSI matrices directly from the object.
 For paired designs, include a pairing identifier column in `coldata` and pass it
 via `paired_id` when calling `DEBKS()`.
 }

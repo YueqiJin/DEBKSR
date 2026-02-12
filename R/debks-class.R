@@ -75,6 +75,11 @@ psiMatrix <- function(x) {
     inc_adj / (inc_adj + skp_adj)
 }
 
+pbsiMatrix <- function(x) {
+    if (!inherits(x, "DEBKS")) stop("x must be a DEBKS object.")
+    1 - psiMatrix(x)
+}
+
 results <- function(x) {
     if (!inherits(x, "DEBKS")) stop("x must be a DEBKS object.")
     x$results
