@@ -78,40 +78,55 @@ debks_bb_core <- local({
         f <- fit_two_shared_r(c1, n1, c2, n2)
         if (abs(f$m1 - f$m2) <= cutoff) return(f)
         sg <- sign(f$m1 - f$m2)
-        obj <- function(par) {   # par: 均值中点(概率尺度, logit 参数化保证界内) + log r
-            mid <- plogis(par[1]); r <- exp(par[2])
+        # 边界保护: mid ∈ [cutoff/2, 1-cutoff/2] 保证 m1,m2 ∈ (0,1)
+        obj <- function(par) {
+            mid <- cutoff / 2 + (1 - cutoff) * plogis(par[1]); r <- exp(par[2])
             m1 <- mid + sg * cutoff / 2; m2 <- mid - sg * cutoff / 2
-            if (m1 <= 0 || m1 >= 1 || m2 <= 0 || m2 >= 1) return(-.Machine$double.xmax)
             v <- ll_two(c1, n1, c2, n2, m1, m2, r)
             if (!is.finite(v)) -.Machine$double.xmax else v
         }
-        o <- try(stats::optim(c(qlogis((f$m1 + f$m2) / 2), log(f$r)),
-                              obj, method = "L-BFGS-B",
-                              lower = c(-15, log(0.5)), upper = c(15, log(1e6)),
+        mid0 <- pmin(pmax((f$m1 + f$m2) / 2, cutoff / 2 + 1e-6), 1 - cutoff / 2 - 1e-6)
+        p10 <- log(mid0 / (1 - mid0))   # mid 参数化的 logit 逆
+        o <- try(stats::optim(c(p10, log(f$r)), obj, method = "L-BFGS-B",
+                              lower = c(-30, log(0.5)), upper = c(30, log(1e6)),
                               control = list(fnscale = -1, maxit = 300)), silent = TRUE)
         if (inherits(o, "try-error") || !is.finite(o$value)) return(f)
-        mid <- plogis(o$par[1]); r <- exp(o$par[2])
+        mid <- cutoff / 2 + (1 - cutoff) * plogis(o$par[1]); r <- exp(o$par[2])
         list(m1 = mid + sg * cutoff / 2, m2 = mid - sg * cutoff / 2, r = r, ll = o$value)
     }
 
     # ---- 主检验入口 ----
     # 输入遵循 stat_r 约定: i/s 已经过 vecAddOne(+1 平滑)与无效样本过滤
-    assign("bb_test_one", function(i1, i2, s1, s2, cutoff_pbsi = 0.05) {
+    # p 值: 参数自助法(B=199)从 H0 拟合模拟零分布 — chi2 逼近在 cutoff>0 的
+    #       复合零假设下不适定(H0 内参数在边界), PB 是 BB 模型族的精确路径
+    assign_pb_seed <- NULL
+    bb_test_one <- function(i1, i2, s1, s2, cutoff_pbsi = 0.05, B = 199) {
         c1 <- i1; n1 <- i1 + s1
         c2 <- i2; n2 <- i2 + s2
         keep <- (n1 > 0) & (n2 > 0)
         c1 <- c1[keep]; n1 <- n1[keep]; c2 <- c2[keep]; n2 <- n2[keep]
         if (length(c1) < 2 || length(c2) < 2) return(c(P = 1, m1 = NA, m2 = NA, r = NA))
-        f1 <- fit_H0(c1, n1, c2, n2, cutoff_pbsi)
-        f2 <- fit_two_shared_r(c1, n1, c2, n2)
+        f1 <- fit_H0(c1, n1, c2, n2, cutoff_pbsi)     # H0: m1,m2 受限 + 共享 r
+        f2 <- fit_two_shared_r(c1, n1, c2, n2)         # H1
         stat <- 2 * (f2$ll - f1$ll)
         if (!is.finite(stat) || stat < 0) stat <- 0
-        p <- stats::pchisq(stat, df = 1, lower.tail = FALSE)
+        # 参数自助: 在 H0 参数下模拟两组数据, 重算 stat
+        a1 <- f1$m1 * f1$r; b1 <- (1 - f1$m1) * f1$r
+        a2 <- f1$m2 * f1$r; b2 <- (1 - f1$m2) * f1$r
+        st0 <- vapply(seq_len(B), function(k) {
+            q1 <- stats::rbeta(length(n1), a1, b1); q2 <- stats::rbeta(length(n2), a2, b2)
+            cc1 <- stats::rbinom(length(n1), n1, q1); cc2 <- stats::rbinom(length(n2), n2, q2)
+            g1 <- fit_H0(cc1, n1, cc2, n2, cutoff_pbsi)
+            g2 <- fit_two_shared_r(cc1, n1, cc2, n2)
+            s0 <- 2 * (g2$ll - g1$ll)
+            if (!is.finite(s0) || s0 < 0) 0 else s0
+        }, numeric(1))
+        p <- (1 + sum(st0 >= stat)) / (B + 1)
         c(P = p, m1 = f2$m1, m2 = f2$m2, r = f2$r)
-    }, envir = env)
+    }
 
     # ---- 批量入口(与 getrMATS_P 同签名, 可直接注入 stat_r) ----
-    assign("bb_getP", function(list_n_original_diff, cutoff, threads) {
+    bb_getP <- function(list_n_original_diff, cutoff, threads) {
         one <- function(x) {
             if (x[[7]] == 0) return(c(P = 1, m1 = NA, m2 = NA, r = NA))
             bb_test_one(x[[1]], x[[2]], x[[3]], x[[4]], cutoff)
@@ -120,7 +135,7 @@ debks_bb_core <- local({
             parallel::mclapply(list_n_original_diff, one, mc.cores = threads)
         } else lapply(list_n_original_diff, one)
         vapply(res, function(z) z[["P"]], numeric(1))
-    }, envir = env)
+    }
 
-    env
+    list(bb_test_one = bb_test_one, bb_getP = bb_getP)
 })
