@@ -11,8 +11,10 @@ DEBKS <- function(dbs,
                   cutoff = 0.05,
                   read_len = 150,
                   hangover_len = 6,
+                  engine = c("rmats", "bb"),
                   output = NULL) {
     if (!inherits(dbs, "DEBKS")) stop("dbs must be a DEBKS object.")
+    engine <- match.arg(engine)
 
     threads <- as.integer(threads)
     cutoff <- min(as.numeric(cutoff), 1.00)
@@ -153,9 +155,14 @@ DEBKS <- function(dbs,
         }
     }
 
+    if (engine == "bb" && paired) {
+        stop("engine='bb' currently supports unpaired designs only.")
+    }
+
     res <- stat_r(cjc, ljc, group1_num, sampleNum, adjust_inc_len, adjust_skp_len,
                  cutoff, groupPair, threads, output, !is.null(dbs$cjc2), sample_filter,
-                 read_len, circ_len, getrMATS_P, vec2float, vecAddOne, adjustPsi, myFDR)
+                 read_len, circ_len, getrMATS_P, vec2float, vecAddOne, adjustPsi, myFDR,
+                 engine = engine)
     dbs$results <- res$matStat
     dbs
 }
@@ -244,7 +251,8 @@ checkInf <- function(x) {
 stat_r <- function(circMat, linearMat, group1_num, sampleNum,
                    adjust_inc_len, adjust_skp_len, cutoff, groupPair,
                    threads, output, isc2, filterSample, readLength,
-                   circ_len, getrMATS_P, vec2float, vecAddOne, adjustPsi, myFDR) {
+                   circ_len, getrMATS_P, vec2float, vecAddOne, adjustPsi, myFDR,
+                   engine = "rmats") {
     list_n_original_diff <- list()
     psi_list_1 <- character(nrow(circMat))
     psi_list_2 <- character(nrow(circMat))
@@ -317,7 +325,11 @@ stat_r <- function(circMat, linearMat, group1_num, sampleNum,
         }
     }
 
-    P <- getrMATS_P(list_n_original_diff, cutoff, threads)
+    if (engine == "bb") {
+        P <- debks_bb_core$bb_getP(list_n_original_diff, cutoff, threads)
+    } else {
+        P <- getrMATS_P(list_n_original_diff, cutoff, threads)
+    }
     FDR <- myFDR(P)
     pbsi1 <- psi2PBSI(psi_list_1)
     pbsi2 <- psi2PBSI(psi_list_2)
