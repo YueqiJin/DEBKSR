@@ -103,8 +103,8 @@ debks_bb_core <- local({
     bb_test_one <- function(i1, i2, s1, s2, cutoff_pbsi = 0.05, B = 199) {
         c1 <- i1; n1 <- i1 + s1
         c2 <- i2; n2 <- i2 + s2
-        keep <- (n1 > 0) & (n2 > 0)
-        c1 <- c1[keep]; n1 <- n1[keep]; c2 <- c2[keep]; n2 <- n2[keep]
+        k1 <- n1 > 0; k2 <- n2 > 0          # 按组分开过滤(两组样本数可不等; R 回收会错位)
+        c1 <- c1[k1]; n1 <- n1[k1]; c2 <- c2[k2]; n2 <- n2[k2]
         if (length(c1) < 2 || length(c2) < 2) return(c(P = 1, m1 = NA, m2 = NA, r = NA))
         f1 <- fit_H0(c1, n1, c2, n2, cutoff_pbsi)     # H0: m1,m2 受限 + 共享 r
         f2 <- fit_two_shared_r(c1, n1, c2, n2)         # H1
